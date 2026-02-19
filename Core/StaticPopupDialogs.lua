@@ -12,15 +12,15 @@ StaticPopupDialogs["TOOLTIPINFO_COPY_ID"] = StaticPopupDialogs["TOOLTIPINFO_COPY
     editBoxWidth = 320,
     closeButton = true,
     OnShow = function(self, info)
-        self.editBox.originalText = info.id
-        self.editBox:SetText(info.id)
-        self.editBox:HighlightText()
-        self.editBox:SetScript("OnTextChanged", OnTextChanged)
+        self.EditBox.originalText = info.id
+        self.EditBox:SetText(info.id)
+        self.EditBox:HighlightText()
+        self.EditBox:SetScript("OnTextChanged", OnTextChanged)
         info.id = nil
     end,
     OnHide = function(self, info)
-        self.editBox:SetScript("OnTextChanged", nil)
-        self.editBox.originalText = nil
+        self.EditBox:SetScript("OnTextChanged", nil)
+        self.EditBox.originalText = nil
         info.id = nil
     end,
     EditBoxOnEnterPressed = HideParentPanel,
