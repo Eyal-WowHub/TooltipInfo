@@ -9,6 +9,7 @@
 ## X-Curse-Project-ID: 965680
 ## X-Wago-ID: 96doenNO
 
+Core\SecretValue.lua
 Core\Constants.lua
 Core\Player.lua
 Core\StaticPopupDialogs.lua

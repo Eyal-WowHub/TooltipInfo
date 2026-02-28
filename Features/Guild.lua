@@ -1,3 +1,7 @@
+local _, addon = ...
+local SafeUnit = addon.SafeUnit
+local IsSecret = addon.IsSecret
+
 local UnitIsPlayer = UnitIsPlayer
 local GetGuildInfo = GetGuildInfo
 
@@ -9,14 +13,18 @@ TooltipDataProcessor.AddLinePreCall(Enum.TooltipDataLineType.None, function(tool
     if tooltip ~= GameTooltip then return end
 
     local _, unit = tooltip:GetUnit()
+    unit = SafeUnit(unit)
+    if not unit then return end
 
-    if unit and UnitIsPlayer(unit) then
+    local isPlayer = UnitIsPlayer(unit)
+    if not IsSecret(isPlayer) and isPlayer then
         local guildName, guildRankName, _, guildRealm = GetGuildInfo(unit)
 
         if not guildName then
             return
         end
 
+        if IsSecret(lineData.leftText) then return end
         if lineData.leftText:find(guildName) and not lineData.isGuildLine then
             lineData.isGuildLine = true
 

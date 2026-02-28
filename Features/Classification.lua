@@ -1,3 +1,7 @@
+local _, addon = ...
+local SafeUnit = addon.SafeUnit
+local IsSecret = addon.IsSecret
+
 local UnitIsPlayer = UnitIsPlayer
 local UnitClassification = UnitClassification
 
@@ -15,11 +19,14 @@ TooltipDataProcessor.AddLinePreCall(Enum.TooltipDataLineType.None, function(tool
     if tooltip ~= GameTooltip then return end
 
     local _, unit = tooltip:GetUnit()
+    unit = SafeUnit(unit)
+    if not unit then return end
 
-    if unit and not UnitIsPlayer(unit) then
+    local isPlayer = UnitIsPlayer(unit)
+    if not IsSecret(isPlayer) and not isPlayer then
         local classification = UnitClassification(unit)
 
-        if not classification then
+        if not classification or IsSecret(classification) then
             return
         end
 

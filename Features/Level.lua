@@ -1,4 +1,6 @@
 local _, addon = ...
+local SafeUnit = addon.SafeUnit
+local IsSecret = addon.IsSecret
 
 local GetContentDifficultyCreatureForPlayer = C_PlayerInfo.GetContentDifficultyCreatureForPlayer
 local UnitIsPlayer = UnitIsPlayer
@@ -18,8 +20,11 @@ TooltipDataProcessor.AddLinePreCall(Enum.TooltipDataLineType.None, function(tool
     if tooltip ~= GameTooltip then return end
 
     local _, unit = tooltip:GetUnit()
+    unit = SafeUnit(unit)
+    if not unit then return end
 
-    if unit and not lineData.isGuildLine then
+    if not lineData.isGuildLine then
+        if IsSecret(lineData.leftText) then return end
         if lineData.leftText:find(LEVEL) and not lineData.isLevelLine then
             lineData.isLevelLine = true
 
@@ -28,7 +33,8 @@ TooltipDataProcessor.AddLinePreCall(Enum.TooltipDataLineType.None, function(tool
             local level, realLevel = UnitEffectiveLevel(unit), UnitLevel(unit)
             local levelText = level > 0 and level or LEVEL_LETHAL
 
-            if UnitIsPlayer(unit) and level < realLevel then
+            local isPlayer = UnitIsPlayer(unit)
+            if not IsSecret(isPlayer) and isPlayer and level < realLevel then
                 levelText = LEVEL_TW_FORMAT:format(levelText, realLevel)
             end
 

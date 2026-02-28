@@ -1,3 +1,7 @@
+local _, addon = ...
+local SafeUnit = addon.SafeUnit
+local IsSecret = addon.IsSecret
+
 local UnitIsPlayer = UnitIsPlayer
 local GetPlayerMythicPlusRatingSummary = C_PlayerInfo.GetPlayerMythicPlusRatingSummary
 local GetDungeonScoreRarityColor = C_ChallengeMode and C_ChallengeMode.GetDungeonScoreRarityColor
@@ -10,8 +14,11 @@ TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tool
     if tooltip ~= GameTooltip then return end
 
     local _, unit = tooltip:GetUnit()
+    unit = SafeUnit(unit)
+    if not unit then return end
 
-    if unit and UnitIsPlayer(unit) then
+    local isPlayer = UnitIsPlayer(unit)
+    if not IsSecret(isPlayer) and isPlayer then
         local info = GetPlayerMythicPlusRatingSummary(unit)
         local score = info and info.currentSeasonScore
 

@@ -1,3 +1,7 @@
+local _, addon = ...
+local SafeUnit = addon.SafeUnit
+local IsSecret = addon.IsSecret
+
 local ICON_LIST = ICON_LIST
 
 local GetRaidTargetIndex = GetRaidTargetIndex
@@ -8,12 +12,14 @@ TooltipDataProcessor.AddLinePreCall(Enum.TooltipDataLineType.UnitName, function(
     if tooltip:IsForbidden() then return end
     if tooltip ~= GameTooltip then return end
 
-    local unit = lineData.unitToken
+    local unit = SafeUnit(lineData.unitToken)
+    if not unit then return end
 
-    if unit and UnitIsPlayer(unit) then
+    local isPlayer = UnitIsPlayer(unit)
+    if not IsSecret(isPlayer) and isPlayer then
         local ricon = GetRaidTargetIndex(unit)
 
-        if ricon then
+        if ricon and not IsSecret(ricon) then
             lineData.leftText = RAID_ICON_FORMAT:format(ICON_LIST[ricon] .. "18|t", lineData.leftText)
         end
     end

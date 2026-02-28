@@ -1,3 +1,7 @@
+local _, addon = ...
+local SafeUnit = addon.SafeUnit
+local IsSecret = addon.IsSecret
+
 local GameTooltip = GameTooltip
 local UnitIsPlayer = UnitIsPlayer
 local UnitGUID = UnitGUID
@@ -126,11 +130,14 @@ TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tool
     if tooltip ~= GameTooltip then return end
 
     local _, unit = tooltip:GetUnit()
+    unit = SafeUnit(unit)
 
-    if unit and UnitIsPlayer(unit) then
+    local isPlayer = unit and UnitIsPlayer(unit)
+    if not IsSecret(isPlayer) and isPlayer then
         local avgItemLevel = 0
 
-        if UnitIsUnit(unit, "player") then
+        local isSelf = UnitIsUnit(unit, "player")
+        if not IsSecret(isSelf) and isSelf then
             avgItemLevel = Player:GetAverageItemLevel()
         elseif IsShiftKeyDown() then
             avgItemLevel = Player:InspectAverageItemLevel(unit)

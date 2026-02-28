@@ -1,3 +1,7 @@
+local _, addon = ...
+local SafeUnit = addon.SafeUnit
+local IsSecret = addon.IsSecret
+
 local UnitIsPlayer = UnitIsPlayer
 local UnitName = UnitName
 local UnitClass = UnitClass
@@ -18,9 +22,11 @@ TooltipDataProcessor.AddLinePreCall(Enum.TooltipDataLineType.UnitName, function(
     if tooltip:IsForbidden() then return end
     if tooltip ~= GameTooltip then return end
 
-    local unit = lineData.unitToken
+    local unit = SafeUnit(lineData.unitToken)
+    if not unit then return end
 
-    if unit and UnitIsPlayer(unit) then
+    local isPlayer = UnitIsPlayer(unit)
+    if not IsSecret(isPlayer) and isPlayer then
         local name, realm = UnitName(unit)
         local relationship = UnitRealmRelationship(unit)
         local _, classFilename = UnitClass(unit)

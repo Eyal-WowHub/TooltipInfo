@@ -1,3 +1,7 @@
+local _, addon = ...
+local SafeUnit = addon.SafeUnit
+local IsSecret = addon.IsSecret
+
 local GameTooltip = GameTooltip
 local GameTooltipStatusBar = GameTooltipStatusBar
 
@@ -43,12 +47,6 @@ do
     HealthBar.Text = text
 end
 
--- issecretvalue was added in 12.0.0; guard against it being nil on older clients.
-local issecretvalue = issecretvalue
-local function IsSecret(val)
-    return issecretvalue and issecretvalue(val)
-end
-
 ------------------------------------------------------------
 -- Update
 ------------------------------------------------------------
@@ -59,8 +57,15 @@ end
 -- For colour we use UnitHealthPercent() which returns a non-secret percentage.
 
 local function UpdateHealthBar(unit)
+    unit = SafeUnit(unit)
+    if not unit then
+        HealthBar:Hide()
+        return
+    end
+
     -- Hide bar if unit is dead.
-    if UnitIsDeadOrGhost(unit) then
+    local isDead = UnitIsDeadOrGhost(unit)
+    if not IsSecret(isDead) and isDead then
         HealthBar:Hide()
         return
     end
@@ -116,7 +121,8 @@ local function UpdateHealthBar(unit)
     -- green for NPCs, class colour for players.
     local r, g, b = 0, 1, 0
 
-    if UnitIsPlayer(unit) then
+    local isPlayer = UnitIsPlayer(unit)
+    if not IsSecret(isPlayer) and isPlayer then
         local _, classFilename = UnitClass(unit)
 
         if classFilename and not IsSecret(classFilename) then
@@ -160,7 +166,7 @@ TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tool
     if tooltip ~= GameTooltip then return end
 
     local _, unit = tooltip:GetUnit()
-
+    unit = SafeUnit(unit)
     if not unit then
         HealthBar.unit = nil
         HealthBar:Hide()

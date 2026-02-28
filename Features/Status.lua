@@ -1,3 +1,7 @@
+local _, addon = ...
+local SafeUnit = addon.SafeUnit
+local IsSecret = addon.IsSecret
+
 local UnitIsPlayer = UnitIsPlayer
 local UnitIsAFK = UnitIsAFK
 local UnitIsDND = UnitIsDND
@@ -18,12 +22,18 @@ TooltipDataProcessor.AddLinePreCall(Enum.TooltipDataLineType.UnitName, function(
     if tooltip:IsForbidden() then return end
     if tooltip ~= GameTooltip then return end
 
-    local unit = lineData.unitToken
+    local unit = SafeUnit(lineData.unitToken)
+    if not unit then return end
 
-    if unit and UnitIsPlayer(unit) then
-        local afk = UnitIsAFK(unit) and PLAYER_STATUS_LABEL["AFK"]
-        local dnd = UnitIsDND(unit) and PLAYER_STATUS_LABEL["DND"]
-        local dc = not UnitIsConnected(unit) and PLAYER_STATUS_LABEL["OFFLINE"]
+    local isPlayer = UnitIsPlayer(unit)
+    if not IsSecret(isPlayer) and isPlayer then
+        local isAFK = UnitIsAFK(unit)
+        local isDND = UnitIsDND(unit)
+        local isConnected = UnitIsConnected(unit)
+
+        local afk = not IsSecret(isAFK) and isAFK and PLAYER_STATUS_LABEL["AFK"]
+        local dnd = not IsSecret(isDND) and isDND and PLAYER_STATUS_LABEL["DND"]
+        local dc  = not IsSecret(isConnected) and not isConnected and PLAYER_STATUS_LABEL["OFFLINE"]
 
         lineData.leftText = lineData.leftText .. (afk or dnd or dc or "")
     end
