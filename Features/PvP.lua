@@ -1,36 +1,39 @@
 local _, addon = ...
 local Player = addon.Player
 local SafeUnit = addon.SafeUnit
-local IsSecret = addon.IsSecret
+local SecretValue = addon.SecretValue
+local Tooltip = addon.Tooltip
 
 local UnitIsPlayer = UnitIsPlayer
 local UnitIsPVP = UnitIsPVP
+local UnitReaction = UnitReaction
 
 local PVP = PVP
 local FACTION_BAR_COLORS = FACTION_BAR_COLORS
 
 local PVP_LABEL = " (" .. PVP .. ")"
 
-TooltipDataProcessor.AddLinePreCall(Enum.TooltipDataLineType.UnitName, function(tooltip, lineData)
+TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tooltip)
     if tooltip:IsForbidden() then return end
     if tooltip ~= GameTooltip then return end
 
-    local unit = SafeUnit(lineData.unitToken)
+    local _, unit = tooltip:GetUnit()
+    unit = SafeUnit.GetUnit(unit)
     if not unit then return end
 
-    local isPVP = UnitIsPVP(unit)
-    if not IsSecret(isPVP) and isPVP then
-        local reactionColor
-        local isPlayer = UnitIsPlayer(unit)
-        if not IsSecret(isPlayer) and isPlayer then
-            reactionColor = Player:GetReactionColor(unit)
-        else
-            local reaction = UnitReaction("player", unit)
-            if reaction and not IsSecret(reaction) then
-                reactionColor = FACTION_BAR_COLORS[reaction]
-            end
-        end
-        reactionColor = reactionColor or FACTION_BAR_COLORS[5]
-        lineData.leftText = lineData.leftText .. reactionColor:WrapTextInColorCode(PVP_LABEL)
+    if not SecretValue.IsTrue(UnitIsPVP(unit)) then return end
+
+    local reactionColor
+    if SecretValue.IsTrue(UnitIsPlayer(unit)) then
+        reactionColor = Player.GetReactionColor(unit)
+    else
+        local reaction = SecretValue.Usable(UnitReaction("player", unit))
+        reactionColor = reaction and FACTION_BAR_COLORS[reaction]
+    end
+    reactionColor = reactionColor or FACTION_BAR_COLORS[5]
+
+    local nameLine, nameText = Tooltip.GetNameLine(tooltip)
+    if nameLine then
+        nameLine:SetText(nameText .. reactionColor:WrapTextInColorCode(PVP_LABEL))
     end
 end)

@@ -1,34 +1,39 @@
 local _, addon = ...
 local SafeUnit = addon.SafeUnit
-local IsSecret = addon.IsSecret
+local SecretValue = addon.SecretValue
+local Tooltip = addon.Tooltip
+
+local select = select
 
 local UnitIsPlayer = UnitIsPlayer
 local UnitClass = UnitClass
 
 local RAID_CLASS_COLORS = RAID_CLASS_COLORS
 
-TooltipDataProcessor.AddLinePreCall(Enum.TooltipDataLineType.None, function(tooltip, lineData)
+TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tooltip)
     if tooltip:IsForbidden() then return end
     if tooltip ~= GameTooltip then return end
 
     local _, unit = tooltip:GetUnit()
-    unit = SafeUnit(unit)
+    unit = SafeUnit.GetUnit(unit)
     if not unit then return end
 
-    local isPlayer = UnitIsPlayer(unit)
-    if not IsSecret(isPlayer) and isPlayer and not lineData.isGuildLine then
-        if IsSecret(lineData.leftText) then return end
-        local className, classFilename = UnitClass(unit)
+    if not SecretValue.IsTrue(UnitIsPlayer(unit)) then return end
 
-        if not className or not classFilename then
-            return
-        end
+    -- className is used as a string.find pattern and classFilename as a table
+    -- key; both must be non-secret for this feature to run.
+    local className = SecretValue.Usable(UnitClass(unit))
+    local classFilename = SecretValue.Usable(select(2, UnitClass(unit)))
+    if not className or not classFilename then return end
 
-        if lineData.leftText:find(className) then
-            local classColor = RAID_CLASS_COLORS[classFilename]
+    local classColor = RAID_CLASS_COLORS[classFilename]
+    if not classColor then return end
 
-            if classColor then
-                lineData.leftText = classColor:WrapTextInColorCode(lineData.leftText)
+    for i = 2, tooltip:NumLines() do
+        if i ~= addon._guildLineIndex then
+            local fontString, text = Tooltip.GetLine(tooltip, i)
+            if fontString and text:find(className, 1, true) then
+                fontString:SetText(classColor:WrapTextInColorCode(text))
             end
         end
     end

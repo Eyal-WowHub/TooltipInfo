@@ -1,32 +1,32 @@
 local _, addon = ...
 local Player = addon.Player
 local SafeUnit = addon.SafeUnit
-local IsSecret = addon.IsSecret
+local SecretValue = addon.SecretValue
+local Tooltip = addon.Tooltip
 
 local UnitIsPlayer = UnitIsPlayer
 local UnitRace = UnitRace
 
 local LEVEL_RACE_FORMAT = "%s %s"
 
-TooltipDataProcessor.AddLinePreCall(Enum.TooltipDataLineType.None, function(tooltip, lineData)
+TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tooltip)
     if tooltip:IsForbidden() then return end
     if tooltip ~= GameTooltip then return end
 
     local _, unit = tooltip:GetUnit()
-    unit = SafeUnit(unit)
+    unit = SafeUnit.GetUnit(unit)
     if not unit then return end
 
-    local isPlayer = UnitIsPlayer(unit)
-    if not IsSecret(isPlayer) and isPlayer and not lineData.isGuildLine then
-        local race = UnitRace(unit)
+    if not SecretValue.IsTrue(UnitIsPlayer(unit)) then return end
 
-        if not race or IsSecret(race) then
-            return
-        end
+    -- The race may be a secret value; it is only ever displayed (format /
+    -- concatenation), never compared or indexed, so it passes straight through.
+    local race = UnitRace(unit)
+    if not race then return end
 
-        if lineData.isLevelLine then
-            local reactionColor = Player:GetReactionColor(unit)
-            lineData.leftText = LEVEL_RACE_FORMAT:format(lineData.leftText, reactionColor:WrapTextInColorCode(race))
-        end
-    end
+    local fontString, text = Tooltip.GetLine(tooltip, addon._levelLineIndex)
+    if not fontString then return end
+
+    local reactionColor = Player.GetReactionColor(unit)
+    fontString:SetText(LEVEL_RACE_FORMAT:format(text, reactionColor:WrapTextInColorCode(race)))
 end)

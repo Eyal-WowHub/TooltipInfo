@@ -1,4 +1,4 @@
-## Interface: 120001
+## Interface: 120007
 
 ## Title: Tooltip|cff40a5f7Info|r
 ## Notes: Enhances the standard tooltip with additional information and visuals.
@@ -10,12 +10,14 @@
 ## X-Wago-ID: 96doenNO
 
 Core\SecretValue.lua
+Core\SafeUnit.lua
+Core\Tooltip.lua
 Core\Constants.lua
 Core\Player.lua
 Core\StaticPopupDialogs.lua
 
-Features\RaidIcon.lua
 Features\Name.lua
+Features\RaidIcon.lua
 Features\PvP.lua
 Features\Status.lua
 Features\Guild.lua

@@ -1,9 +1,11 @@
 local _, addon = ...
 local SafeUnit = addon.SafeUnit
-local IsSecret = addon.IsSecret
+local SecretValue = addon.SecretValue
 
-local UnitIsUnit = UnitIsUnit
+local select = select
+
 local UnitIsPlayer = UnitIsPlayer
+local UnitIsUnit = UnitIsUnit
 local UnitClass = UnitClass
 local UnitReaction = UnitReaction
 local UnitName = UnitName
@@ -16,31 +18,26 @@ local RAID_CLASS_COLORS = RAID_CLASS_COLORS
 
 local PLAYER_LABEL = WHITE_FONT_COLOR:WrapTextInColorCode("<" .. UNIT_YOU ..">")
 local THE_TARGET_FORMAT = NORMAL_FONT_COLOR:WrapTextInColorCode(TARGET .. ": %s")
+local TARGET_MATCH = TARGET .. ": "
 
 local function GetTargetName(unit)
-    local name, color = nil, nil
-    local isPlayer = UnitIsUnit(unit, "player")
-    if not IsSecret(isPlayer) and isPlayer then
+    if SecretValue.IsTrue(UnitIsUnit(unit, "player")) then
         return PLAYER_LABEL
     end
-    isPlayer = UnitIsPlayer(unit)
-    if not IsSecret(isPlayer) and isPlayer then
-        local classFilename = select(2, UnitClass(unit))
-        if classFilename and not IsSecret(classFilename) then
-            color = RAID_CLASS_COLORS[classFilename]
-        end
+
+    local color
+    if SecretValue.IsTrue(UnitIsPlayer(unit)) then
+        local classFilename = SecretValue.Usable(select(2, UnitClass(unit)))
+        color = classFilename and RAID_CLASS_COLORS[classFilename]
     else
-        local reaction = UnitReaction(unit, "player")
-        if reaction and not IsSecret(reaction) then
-            color = FACTION_BAR_COLORS[reaction]
-        end
+        local reaction = SecretValue.Usable(UnitReaction(unit, "player"))
+        color = reaction and FACTION_BAR_COLORS[reaction]
     end
-    name = UnitName(unit)
     color = color or WHITE_FONT_COLOR
-    if IsSecret(name) then
-        return color:WrapTextInColorCode(("%s"):format(name))
-    end
-    return color:WrapTextInColorCode(name)
+
+    -- The name may be secret; WrapTextInColorCode concatenates colour codes,
+    -- which is permitted on secret strings, so it is only ever displayed.
+    return color:WrapTextInColorCode(UnitName(unit))
 end
 
 TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tooltip)
@@ -48,29 +45,25 @@ TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tool
     if tooltip ~= GameTooltip then return end
 
     local _, unit = tooltip:GetUnit()
-    unit = SafeUnit(unit)
+    unit = SafeUnit.GetUnit(unit)
     if not unit then return end
 
-    local numLines = tooltip:NumLines()
+    local targetUnit = unit .. "target"
+    if not SecretValue.IsTrue(UnitExists(targetUnit)) then return end
 
-    for i = 1, numLines do
+    local targetLabel = THE_TARGET_FORMAT:format(GetTargetName(targetUnit))
+
+    -- If a target line is already present (e.g. a tooltip refresh), update it
+    -- in place; otherwise append a new line. Never call tooltip:SetUnit here:
+    -- it re-enters every tooltip post-call and recurses.
+    for i = 1, tooltip:NumLines() do
         local line = _G["GameTooltipTextLeft" .. i]
-        local text = line:GetText()
-        local unit = unit .. "target"
-
-        if text and not IsSecret(text) and text:find(THE_TARGET_FORMAT:format(".+")) then
-            local exists = UnitExists(unit)
-            if not IsSecret(exists) and exists then
-                line:SetText(THE_TARGET_FORMAT:format(GetTargetName(unit)))
-            else
-                tooltip:SetUnit("mouseover")
-            end
-            break
-        elseif i == numLines then
-            local exists = UnitExists(unit)
-            if not IsSecret(exists) and exists then
-                tooltip:AddLine(THE_TARGET_FORMAT:format(GetTargetName(unit)))
-            end
+        local text = line and line:GetText()
+        if text and not SecretValue.IsSecret(text) and text:find(TARGET_MATCH, 1, true) then
+            line:SetText(targetLabel)
+            return
         end
     end
+
+    tooltip:AddLine(targetLabel)
 end)

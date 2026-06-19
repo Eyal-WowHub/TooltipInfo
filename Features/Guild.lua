@@ -1,40 +1,42 @@
 local _, addon = ...
 local SafeUnit = addon.SafeUnit
-local IsSecret = addon.IsSecret
+local SecretValue = addon.SecretValue
+local Tooltip = addon.Tooltip
 
 local UnitIsPlayer = UnitIsPlayer
 local GetGuildInfo = GetGuildInfo
+local IsShiftKeyDown = IsShiftKeyDown
 
 local GUILD_FORMAT = GREEN_FONT_COLOR:WrapTextInColorCode("%s <%s>")
 local GUILD_FULLNAME_FORMAT = "%s-%s"
 
-TooltipDataProcessor.AddLinePreCall(Enum.TooltipDataLineType.None, function(tooltip, lineData)
+TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tooltip)
     if tooltip:IsForbidden() then return end
     if tooltip ~= GameTooltip then return end
 
     local _, unit = tooltip:GetUnit()
-    unit = SafeUnit(unit)
+    unit = SafeUnit.GetUnit(unit)
     if not unit then return end
 
-    local isPlayer = UnitIsPlayer(unit)
-    if not IsSecret(isPlayer) and isPlayer then
-        local guildName, guildRankName, _, guildRealm = GetGuildInfo(unit)
+    if not SecretValue.IsTrue(UnitIsPlayer(unit)) then return end
 
-        if not guildName then
-            return
-        end
+    addon._guildLineIndex = nil
 
-        if IsSecret(lineData.leftText) then return end
-        if lineData.leftText:find(guildName) and not lineData.isGuildLine then
-            lineData.isGuildLine = true
+    -- guildName is used as a string.find pattern (FindLine) and as a format
+    -- argument, so it must be non-secret; the rank/realm are only formatted.
+    local guildName, guildRankName, _, guildRealm = GetGuildInfo(unit)
+    guildName = SecretValue.Usable(guildName)
+    if not guildName or not guildRankName then return end
 
-            local guildFullName = guildName
+    local fontString, _, i = Tooltip.FindLine(tooltip, guildName)
+    if not fontString then return end
+    addon._guildLineIndex = i
 
-            if guildRealm and IsShiftKeyDown() then
-                guildFullName = GUILD_FULLNAME_FORMAT:format(guildName, guildRealm)
-            end
-
-            lineData.leftText = GUILD_FORMAT:format(guildFullName, guildRankName)
-        end
+    local guildFullName = guildName
+    guildRealm = SecretValue.Usable(guildRealm)
+    if guildRealm and IsShiftKeyDown() then
+        guildFullName = GUILD_FULLNAME_FORMAT:format(guildName, guildRealm)
     end
+
+    fontString:SetText(GUILD_FORMAT:format(guildFullName, guildRankName))
 end)

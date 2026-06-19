@@ -1,6 +1,6 @@
 local _, addon = ...
 local SafeUnit = addon.SafeUnit
-local IsSecret = addon.IsSecret
+local SecretValue = addon.SecretValue
 
 local UnitIsPlayer = UnitIsPlayer
 local UnitHonorLevel = UnitHonorLevel
@@ -14,17 +14,14 @@ TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tool
     if tooltip ~= GameTooltip then return end
 
     local _, unit = tooltip:GetUnit()
-    unit = SafeUnit(unit)
+    unit = SafeUnit.GetUnit(unit)
     if not unit then return end
 
-    local isPlayer = UnitIsPlayer(unit)
-    if not IsSecret(isPlayer) and isPlayer then
-        local honorLevel = UnitHonorLevel(unit)
+    if not SecretValue.IsTrue(UnitIsPlayer(unit)) then return end
 
-        if IsSecret(honorLevel) or honorLevel <= 0 then
-            return
-        end
+    -- honorLevel is compared against zero, so it must be non-secret.
+    local honorLevel = SecretValue.Usable(UnitHonorLevel(unit))
+    if not honorLevel or honorLevel <= 0 then return end
 
-        tooltip:AddDoubleLine(HONOR_LEVEL_LABEL, honorLevel, nil, nil, nil, 1, 1, 1)
-    end
+    tooltip:AddDoubleLine(HONOR_LEVEL_LABEL, honorLevel, nil, nil, nil, 1, 1, 1)
 end)

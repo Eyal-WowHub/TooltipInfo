@@ -1,6 +1,8 @@
 local _, addon = ...
 local SafeUnit = addon.SafeUnit
-local IsSecret = addon.IsSecret
+local SecretValue = addon.SecretValue
+
+local next = next
 
 local UnitIsPlayer = UnitIsPlayer
 local GetPlayerMythicPlusRatingSummary = C_PlayerInfo.GetPlayerMythicPlusRatingSummary
@@ -14,47 +16,46 @@ TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tool
     if tooltip ~= GameTooltip then return end
 
     local _, unit = tooltip:GetUnit()
-    unit = SafeUnit(unit)
+    unit = SafeUnit.GetUnit(unit)
     if not unit then return end
 
-    local isPlayer = UnitIsPlayer(unit)
-    if not IsSecret(isPlayer) and isPlayer then
-        local info = GetPlayerMythicPlusRatingSummary(unit)
-        local score = info and info.currentSeasonScore
+    if not SecretValue.IsTrue(UnitIsPlayer(unit)) then return end
 
-        if score and score > 0 then
-            local color
+    -- The summary table and its fields may be secret under stat restrictions.
+    -- They feed comparisons and a rarity-colour lookup, so they must be
+    -- non-secret to evaluate; otherwise the section is skipped.
+    local info = SecretValue.Usable(GetPlayerMythicPlusRatingSummary(unit))
+    if not info then return end
 
-            if GetDungeonScoreRarityColor then
-                color = GetDungeonScoreRarityColor(score)
-            end
+    local score = SecretValue.Usable(info.currentSeasonScore)
+    if not score or score <= 0 then return end
 
-            if not color then
-                color = HIGHLIGHT_FONT_COLOR
-            end
+    local color = GetDungeonScoreRarityColor and GetDungeonScoreRarityColor(score) or HIGHLIGHT_FONT_COLOR
 
-            tooltip:AddDoubleLine(MYTHIC_PLUS_RATING_LABEL, score, nil, nil, nil, color.r, color.g, color.b)
+    tooltip:AddDoubleLine(MYTHIC_PLUS_RATING_LABEL, score, nil, nil, nil, color.r, color.g, color.b)
 
-            local bestRun = 0
-            local challengeModeID = 0
+    local runs = SecretValue.Usable(info.runs)
+    if not runs then return end
 
-            for _, run in next, info.runs do
-                if run.finishedSuccess and run.bestRunLevel > bestRun then
-                    bestRun = run.bestRunLevel
-                    challengeModeID = run.challengeModeID
-                end
-            end
+    local bestRun = 0
+    local challengeModeID
 
-            if bestRun > 0 then
-                if not IsShiftKeyDown() then
-                    tooltip:AddDoubleLine(MYTHIC_PLUS_BEST_RUN_LABEL, bestRun, nil, nil, nil, color.r, color.g, color.b)
-                elseif challengeModeID then
-                    tooltip:AddLine(MYTHIC_PLUS_BEST_RUN_LABEL)
-                    local mapName = C_ChallengeMode.GetMapUIInfo(challengeModeID)
-                    if mapName then
-                        tooltip:AddDoubleLine("  " .. mapName, bestRun, color.r, color.g, color.b, color.r, color.g, color.b)
-                    end
-                end
+    for _, run in next, runs do
+        local runLevel = SecretValue.Usable(run.bestRunLevel)
+        if SecretValue.IsTrue(run.finishedSuccess) and runLevel and runLevel > bestRun then
+            bestRun = runLevel
+            challengeModeID = SecretValue.Usable(run.challengeModeID)
+        end
+    end
+
+    if bestRun > 0 then
+        if not IsShiftKeyDown() then
+            tooltip:AddDoubleLine(MYTHIC_PLUS_BEST_RUN_LABEL, bestRun, nil, nil, nil, color.r, color.g, color.b)
+        elseif challengeModeID then
+            tooltip:AddLine(MYTHIC_PLUS_BEST_RUN_LABEL)
+            local mapName = C_ChallengeMode.GetMapUIInfo(challengeModeID)
+            if mapName then
+                tooltip:AddDoubleLine("  " .. mapName, bestRun, color.r, color.g, color.b, color.r, color.g, color.b)
             end
         end
     end

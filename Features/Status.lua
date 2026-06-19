@@ -1,6 +1,7 @@
 local _, addon = ...
 local SafeUnit = addon.SafeUnit
-local IsSecret = addon.IsSecret
+local SecretValue = addon.SecretValue
+local Tooltip = addon.Tooltip
 
 local UnitIsPlayer = UnitIsPlayer
 local UnitIsAFK = UnitIsAFK
@@ -18,23 +19,26 @@ local PLAYER_STATUS_LABEL = {
     ["OFFLINE"] = GRAY_FONT_COLOR:WrapTextInColorCode(PLAYER_STATUS_FORMAT:format(PLAYER_OFFLINE))
 }
 
-TooltipDataProcessor.AddLinePreCall(Enum.TooltipDataLineType.UnitName, function(tooltip, lineData)
+TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tooltip)
     if tooltip:IsForbidden() then return end
     if tooltip ~= GameTooltip then return end
 
-    local unit = SafeUnit(lineData.unitToken)
+    local _, unit = tooltip:GetUnit()
+    unit = SafeUnit.GetUnit(unit)
     if not unit then return end
 
-    local isPlayer = UnitIsPlayer(unit)
-    if not IsSecret(isPlayer) and isPlayer then
-        local isAFK = UnitIsAFK(unit)
-        local isDND = UnitIsDND(unit)
-        local isConnected = UnitIsConnected(unit)
+    if not SecretValue.IsTrue(UnitIsPlayer(unit)) then return end
 
-        local afk = not IsSecret(isAFK) and isAFK and PLAYER_STATUS_LABEL["AFK"]
-        local dnd = not IsSecret(isDND) and isDND and PLAYER_STATUS_LABEL["DND"]
-        local dc  = not IsSecret(isConnected) and not isConnected and PLAYER_STATUS_LABEL["OFFLINE"]
+    local afk = SecretValue.IsTrue(UnitIsAFK(unit)) and PLAYER_STATUS_LABEL["AFK"]
+    local dnd = SecretValue.IsTrue(UnitIsDND(unit)) and PLAYER_STATUS_LABEL["DND"]
+    -- Offline only when we can prove the unit is disconnected (non-secret false).
+    local dc  = SecretValue.Usable(UnitIsConnected(unit)) == false and PLAYER_STATUS_LABEL["OFFLINE"]
 
-        lineData.leftText = lineData.leftText .. (afk or dnd or dc or "")
+    local status = afk or dnd or dc
+    if status then
+        local nameLine, nameText = Tooltip.GetNameLine(tooltip)
+        if nameLine then
+            nameLine:SetText(nameText .. status)
+        end
     end
 end)

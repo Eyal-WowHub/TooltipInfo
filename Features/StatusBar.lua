@@ -1,13 +1,15 @@
 local _, addon = ...
 local SafeUnit = addon.SafeUnit
-local IsSecret = addon.IsSecret
+local SecretValue = addon.SecretValue
 
+local select = select
+
+local UnitIsPlayer = UnitIsPlayer
 local GameTooltip = GameTooltip
 local GameTooltipStatusBar = GameTooltipStatusBar
 
 local UnitHealth = UnitHealth
 local UnitHealthMax = UnitHealthMax
-local UnitIsPlayer = UnitIsPlayer
 local UnitIsDeadOrGhost = UnitIsDeadOrGhost
 local UnitExists = UnitExists
 local UnitClass = UnitClass
@@ -50,22 +52,20 @@ end
 ------------------------------------------------------------
 -- Update
 ------------------------------------------------------------
--- Key insight from TipTac: StatusBar:SetMinMaxValues() and StatusBar:SetValue()
--- accept secret values – the bar fills visually. String operations
--- (string.format, SetFormattedText) also work with secrets.
--- Only arithmetic comparisons (>, <, ==) fail with secrets.
--- For colour we use UnitHealthPercent() which returns a non-secret percentage.
+-- StatusBar:SetMinMaxValues() and StatusBar:SetValue() accept secret values,
+-- so the bar always fills visually even in restricted content. Only arithmetic
+-- and comparisons (>, <, ==, /, %.0f) fail on secrets, so those are gated
+-- behind Usable(); the secret fallback formats with %s, the only specifier
+-- permitted on secret numbers.
 
 local function UpdateHealthBar(unit)
-    unit = SafeUnit(unit)
+    unit = SafeUnit.GetUnit(unit)
     if not unit then
         HealthBar:Hide()
         return
     end
 
-    -- Hide bar if unit is dead.
-    local isDead = UnitIsDeadOrGhost(unit)
-    if not IsSecret(isDead) and isDead then
+    if SecretValue.IsTrue(UnitIsDeadOrGhost(unit)) then
         HealthBar:Hide()
         return
     end
@@ -73,64 +73,38 @@ local function UpdateHealthBar(unit)
     local health    = UnitHealth(unit)
     local healthMax = UnitHealthMax(unit)
 
-    local healthIsSecret    = IsSecret(health)
-    local healthMaxIsSecret = IsSecret(healthMax)
+    local usableHealth = SecretValue.Usable(health)
+    local usableHealthMax = SecretValue.Usable(healthMax)
 
-    -- When values are NOT secret we can perform normal nil / zero checks.
-    if not healthIsSecret and not healthMaxIsSecret then
-        if not health or not healthMax or healthMax == 0 then
+    if usableHealth and usableHealthMax then
+        if usableHealthMax == 0 then
             HealthBar:Hide()
             return
         end
-    end
 
-    -- SetMinMaxValues / SetValue accept secret values – the bar fills visually.
-    HealthBar:SetMinMaxValues(0, healthMax)
-    HealthBar:SetValue(health)
-
-    -- Text ------------------------------------------------------------------
-    -- SetFormattedText with %s converts secrets to their string representation.
-    -- Health and percentage are secret values in 12.0.0+; arithmetic (%.0f)
-    -- fails on secrets, but %s works.  For non-secret values we can format nicely.
-    if healthIsSecret or healthMaxIsSecret then
-        -- Values are secret – use %s which stringifies secrets correctly.
-        -- Try to include percentage from UnitHealthPercent (also secret, but %s handles it).
-        if UnitHealthPercent then
-            local percent = UnitHealthPercent(unit, nil, CurveConstants and CurveConstants.ScaleTo100)
-
-            if percent then
-                HealthBar.Text:SetFormattedText("%s / %s (%.0f%%)", health, healthMax, percent)
-            else
-                HealthBar.Text:SetFormattedText("%s / %s", health, healthMax)
-            end
-        else
-            HealthBar.Text:SetFormattedText("%s / %s", health, healthMax)
-        end
-    else
+        HealthBar:SetMinMaxValues(0, usableHealthMax)
+        HealthBar:SetValue(usableHealth)
         HealthBar.Text:SetFormattedText(
             "%s / %s (%.0f%%)",
-            BreakUpLargeNumbers(health),
-            BreakUpLargeNumbers(healthMax),
-            health / healthMax * 100
+            BreakUpLargeNumbers(usableHealth),
+            BreakUpLargeNumbers(usableHealthMax),
+            usableHealth / usableHealthMax * 100
         )
+    else
+        -- Health is secret: the setters still accept it (the bar fills), and
+        -- %s is the only format specifier allowed on a secret number.
+        HealthBar:SetMinMaxValues(0, healthMax)
+        HealthBar:SetValue(health)
+        HealthBar.Text:SetFormattedText("%s / %s", health, healthMax)
     end
 
-    -- Colour ----------------------------------------------------------------
-    -- Gradient is not possible with secret values (12.0.0+) since Lua arithmetic
-    -- on secrets is blocked and taint cannot be stripped. Use flat colour instead:
-    -- green for NPCs, class colour for players.
+    -- Colour: flat green for NPCs, class colour for players.
     local r, g, b = 0, 1, 0
-
-    local isPlayer = UnitIsPlayer(unit)
-    if not IsSecret(isPlayer) and isPlayer then
-        local _, classFilename = UnitClass(unit)
-
-        if classFilename and not IsSecret(classFilename) then
-            local classColor = RAID_CLASS_COLORS[classFilename]
-
-            if classColor then
-                r, g, b = classColor.r, classColor.g, classColor.b
-            end
+    if SecretValue.IsTrue(UnitIsPlayer(unit)) then
+        local classFilename = SecretValue.Usable(select(2, UnitClass(unit)))
+        local classColor = classFilename and RAID_CLASS_COLORS[classFilename]
+        if classColor then
+            r, g, b = classColor.r, classColor.g, classColor.b
         end
     end
 
@@ -166,7 +140,7 @@ TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tool
     if tooltip ~= GameTooltip then return end
 
     local _, unit = tooltip:GetUnit()
-    unit = SafeUnit(unit)
+    unit = SafeUnit.GetUnit(unit)
     if not unit then
         HealthBar.unit = nil
         HealthBar:Hide()
@@ -179,7 +153,7 @@ TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tool
     if HealthBar:IsShown() then
         local textWidth = HealthBar.Text:GetStringWidth()
 
-        if textWidth and not IsSecret(textWidth) and textWidth > 0 then
+        if textWidth and not SecretValue.IsSecret(textWidth) and textWidth > 0 then
             tooltip:SetMinimumWidth(textWidth)
         end
     end

@@ -1,9 +1,10 @@
 local _, addon = ...
 local SafeUnit = addon.SafeUnit
-local IsSecret = addon.IsSecret
+local SecretValue = addon.SecretValue
+local Tooltip = addon.Tooltip
 
-local GetContentDifficultyCreatureForPlayer = C_PlayerInfo.GetContentDifficultyCreatureForPlayer
 local UnitIsPlayer = UnitIsPlayer
+local GetContentDifficultyCreatureForPlayer = C_PlayerInfo.GetContentDifficultyCreatureForPlayer
 local UnitEffectiveLevel = UnitEffectiveLevel
 local UnitLevel = UnitLevel
 
@@ -15,30 +16,42 @@ local LEVEL_LETHAL = RED_FONT_COLOR:WrapTextInColorCode("??")
 
 local DIFFICULTY_COLOR = addon.DIFFICULTY_COLOR
 
-TooltipDataProcessor.AddLinePreCall(Enum.TooltipDataLineType.None, function(tooltip, lineData)
+TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tooltip)
     if tooltip:IsForbidden() then return end
     if tooltip ~= GameTooltip then return end
 
     local _, unit = tooltip:GetUnit()
-    unit = SafeUnit(unit)
+    unit = SafeUnit.GetUnit(unit)
     if not unit then return end
 
-    if not lineData.isGuildLine then
-        if IsSecret(lineData.leftText) then return end
-        if lineData.leftText:find(LEVEL) and not lineData.isLevelLine then
-            lineData.isLevelLine = true
+    addon._levelLineIndex = nil
 
-            local difficulty = GetContentDifficultyCreatureForPlayer(unit)
-            local diffColor = DIFFICULTY_COLOR[difficulty]
-            local level, realLevel = UnitEffectiveLevel(unit), UnitLevel(unit)
-            local levelText = level > 0 and level or LEVEL_LETHAL
+    local fontString, _, i = Tooltip.FindLine(tooltip, LEVEL)
+    if not fontString then return end
+    addon._levelLineIndex = i
 
-            local isPlayer = UnitIsPlayer(unit)
-            if not IsSecret(isPlayer) and isPlayer and level < realLevel then
-                levelText = LEVEL_TW_FORMAT:format(levelText, realLevel)
-            end
+    -- difficulty is a table key; it must be non-secret to pick a colour.
+    local difficulty = SecretValue.Usable(GetContentDifficultyCreatureForPlayer(unit))
+    local diffColor = difficulty and DIFFICULTY_COLOR[difficulty]
 
-            lineData.leftText = diffColor:WrapTextInColorCode(TOOLTIP_UNIT_LEVEL:format(levelText))
+    -- Levels feed arithmetic/comparisons, so they must be non-secret to be
+    -- evaluated; a secret level is still displayed (format accepts secrets).
+    local level = SecretValue.Usable(UnitEffectiveLevel(unit))
+    local realLevel = SecretValue.Usable(UnitLevel(unit))
+
+    local levelText
+    if level then
+        levelText = level > 0 and level or LEVEL_LETHAL
+        if SecretValue.IsTrue(UnitIsPlayer(unit)) and realLevel and level > 0 and level < realLevel then
+            levelText = LEVEL_TW_FORMAT:format(levelText, realLevel)
         end
+    else
+        levelText = UnitEffectiveLevel(unit) -- secret value, display only
     end
+
+    local formatted = TOOLTIP_UNIT_LEVEL:format(levelText)
+    if diffColor then
+        formatted = diffColor:WrapTextInColorCode(formatted)
+    end
+    fontString:SetText(formatted)
 end)

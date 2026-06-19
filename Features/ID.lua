@@ -71,7 +71,9 @@ TooltipDataProcessor.AddTooltipPostCall(TooltipDataProcessor.AllTypes, function(
             local GetItem = tooltip.GetItem
             if GetItem then
                 local _, link = GetItem(tooltip)
-                id = link:match(LINK_PATTERN)
+                if link then
+                    id = link:match(LINK_PATTERN)
+                end
             end
         end
         label = ITEM_LABEL
@@ -86,7 +88,9 @@ TooltipDataProcessor.AddTooltipPostCall(TooltipDataProcessor.AllTypes, function(
             if info and info.getterArgs then
                 local unit, index, filter = unpack(info.getterArgs)
                 local auraData = GetAuraDataByIndex(unit, index, filter)
-                id = auraData.spellId
+                if auraData then
+                    id = auraData.spellId
+                end
             end
         end
         label = AURA_LABEL

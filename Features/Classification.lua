@@ -1,6 +1,7 @@
 local _, addon = ...
 local SafeUnit = addon.SafeUnit
-local IsSecret = addon.IsSecret
+local SecretValue = addon.SecretValue
+local Tooltip = addon.Tooltip
 
 local UnitIsPlayer = UnitIsPlayer
 local UnitClassification = UnitClassification
@@ -14,28 +15,26 @@ local CLASSIFICATIONS = {
     minus = COMMON_GRAY_COLOR:WrapTextInColorCode(CLASSIFICATIONS_FORMAT:format(UNIT_NAMEPLATES_SHOW_ENEMY_MINUS)),
 }
 
-TooltipDataProcessor.AddLinePreCall(Enum.TooltipDataLineType.None, function(tooltip, lineData)
+TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tooltip)
     if tooltip:IsForbidden() then return end
     if tooltip ~= GameTooltip then return end
 
     local _, unit = tooltip:GetUnit()
-    unit = SafeUnit(unit)
+    unit = SafeUnit.GetUnit(unit)
     if not unit then return end
 
-    local isPlayer = UnitIsPlayer(unit)
-    if not IsSecret(isPlayer) and not isPlayer then
-        local classification = UnitClassification(unit)
+    -- Classification only applies to NPCs; players have no entry in the table.
+    if SecretValue.IsTrue(UnitIsPlayer(unit)) then return end
 
-        if not classification or IsSecret(classification) then
-            return
-        end
+    -- classification is a table key, so it must be non-secret.
+    local classification = SecretValue.Usable(UnitClassification(unit))
+    if not classification then return end
 
-        if lineData.isLevelLine then
-            local classText = CLASSIFICATIONS[classification]
+    local classText = CLASSIFICATIONS[classification]
+    if not classText then return end
 
-            if classText then
-                lineData.leftText = lineData.leftText .. classText
-            end
-        end
-    end
+    local fontString, text = Tooltip.GetLine(tooltip, addon._levelLineIndex)
+    if not fontString then return end
+
+    fontString:SetText(text .. classText)
 end)

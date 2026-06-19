@@ -1,7 +1,11 @@
 local _, addon = ...
 local SafeUnit = addon.SafeUnit
-local IsSecret = addon.IsSecret
+local SecretValue = addon.SecretValue
 
+local select = select
+
+local UnitIsPlayer = UnitIsPlayer
+local UnitFactionGroup = UnitFactionGroup
 local PVP = PVP
 
 TooltipDataProcessor.AddLinePreCall(Enum.TooltipDataLineType.None, function(tooltip, lineData)
@@ -9,22 +13,20 @@ TooltipDataProcessor.AddLinePreCall(Enum.TooltipDataLineType.None, function(tool
     if tooltip ~= GameTooltip then return end
 
     local _, unit = tooltip:GetUnit()
-    unit = SafeUnit(unit)
+    unit = SafeUnit.GetUnit(unit)
     if not unit then return end
 
-    if not lineData.isGuildLine then
-        local leftText = lineData.leftText
-        if IsSecret(leftText) then return end
+    local leftText = lineData.leftText
+    if not leftText or SecretValue.IsSecret(leftText) then return end
 
-        if leftText == PVP then
+    if leftText == PVP then
+        return true
+    end
+
+    if SecretValue.IsTrue(UnitIsPlayer(unit)) then
+        local localizedFaction = SecretValue.Usable(select(2, UnitFactionGroup(unit)))
+        if localizedFaction and leftText == localizedFaction then
             return true
-        end
-        local isPlayer = UnitIsPlayer(unit)
-        if not IsSecret(isPlayer) and isPlayer then
-            local _, localizedFaction = UnitFactionGroup(unit)
-            if leftText == localizedFaction then
-                return true
-            end
         end
     end
 end)

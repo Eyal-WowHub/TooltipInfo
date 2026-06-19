@@ -1,6 +1,6 @@
 local _, addon = ...
 local SafeUnit = addon.SafeUnit
-local IsSecret = addon.IsSecret
+local SecretValue = addon.SecretValue
 
 local GameTooltip = GameTooltip
 local UnitIsPlayer = UnitIsPlayer
@@ -20,12 +20,22 @@ local NewTicker = C_Timer.NewTicker
 local ITEM_LEVEL_LABEL = NORMAL_FONT_COLOR:WrapTextInColorCode(STAT_AVERAGE_ITEM_LEVEL .. ":")
 
 local function AddItemLine(avgItemLevel, refresh)
-    if avgItemLevel > 0 then
-        avgItemLevel = RoundToSignificantDigits(avgItemLevel, 2)
+    -- A secret item level (restricted stats) cannot be compared or rounded,
+    -- but it is safe to display, so it passes straight through to AddDoubleLine.
+    if SecretValue.IsSecret(avgItemLevel) then
         GameTooltip:AddDoubleLine(ITEM_LEVEL_LABEL, avgItemLevel, nil, nil, nil, 1, 1, 1)
         if refresh then
             GameTooltip:Show()
         end
+        return
+    end
+
+    if not avgItemLevel or avgItemLevel <= 0 then return end
+
+    avgItemLevel = RoundToSignificantDigits(avgItemLevel, 2)
+    GameTooltip:AddDoubleLine(ITEM_LEVEL_LABEL, avgItemLevel, nil, nil, nil, 1, 1, 1)
+    if refresh then
+        GameTooltip:Show()
     end
 end
 
@@ -67,12 +77,16 @@ do
     local frame = CreateFrame("Frame")
     frame:SetScript("OnEvent", function(self, event, guid)
         if event == "INSPECT_READY" then
-            if lastInspectedUnit and UnitExists(lastInspectedUnit) and lastInspectedGuid == guid then
+            -- The event GUID and our stored GUID must both be non-secret to be
+            -- compared; cache only non-secret values (a secret cached value
+            -- would later error on the `== 0` freshness check).
+            local readyGuid = SecretValue.Usable(guid)
+            if lastInspectedUnit and UnitExists(lastInspectedUnit) and readyGuid and lastInspectedGuid == readyGuid then
                 local avgItemLevel = GetInspectItemLevel(lastInspectedUnit)
-                if avgItemLevel > 0 then
-                    ItemLevel:Cache(guid, avgItemLevel)
-                    AddItemLine(avgItemLevel, true)
+                if SecretValue.Usable(avgItemLevel) then
+                    ItemLevel:Cache(readyGuid, avgItemLevel)
                 end
+                AddItemLine(avgItemLevel, true)
                 lastInspectedUnit = nil
                 lastInspectedGuid = nil
             end
@@ -81,7 +95,7 @@ do
     end)
 
     local function IsUnitInspectable(unit)
-        return CanInspect(unit) and UnitIsConnected(unit) and not UnitIsDeadOrGhost(unit)
+        return SecretValue.IsTrue(CanInspect(unit)) and SecretValue.IsTrue(UnitIsConnected(unit)) and not SecretValue.IsTrue(UnitIsDeadOrGhost(unit))
     end
 
     local function StartInspect()
@@ -101,8 +115,10 @@ do
     function Player:InspectAverageItemLevel(unit)
         lastInspectedUnit = unit
 
-        local guid = UnitGUID(unit)
-        local avgItemLevel = ItemLevel:Get(guid) or 0
+        -- The GUID is used as a cache table key and in equality checks, so it
+        -- must be non-secret; a secret identity simply skips the inspect path.
+        local guid = SecretValue.Usable(UnitGUID(unit))
+        local avgItemLevel = (guid and ItemLevel:Get(guid)) or 0
 
         if avgItemLevel == 0 and lastInspectedGuid ~= guid then
             lastInspectedGuid = guid
@@ -130,21 +146,23 @@ TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tool
     if tooltip ~= GameTooltip then return end
 
     local _, unit = tooltip:GetUnit()
-    unit = SafeUnit(unit)
-
-    local isPlayer = unit and UnitIsPlayer(unit)
-    if not IsSecret(isPlayer) and isPlayer then
-        local avgItemLevel = 0
-
-        local isSelf = UnitIsUnit(unit, "player")
-        if not IsSecret(isSelf) and isSelf then
-            avgItemLevel = Player:GetAverageItemLevel()
-        elseif IsShiftKeyDown() then
-            avgItemLevel = Player:InspectAverageItemLevel(unit)
-        end
-
-        AddItemLine(avgItemLevel)
-    else
+    unit = SafeUnit.GetUnit(unit)
+    if not unit then
         Player:StopInspection()
+        return
     end
+
+    if not SecretValue.IsTrue(UnitIsPlayer(unit)) then
+        Player:StopInspection()
+        return
+    end
+
+    local avgItemLevel = 0
+    if SecretValue.IsTrue(UnitIsUnit(unit, "player")) then
+        avgItemLevel = Player:GetAverageItemLevel()
+    elseif IsShiftKeyDown() then
+        avgItemLevel = Player:InspectAverageItemLevel(unit)
+    end
+
+    AddItemLine(avgItemLevel)
 end)

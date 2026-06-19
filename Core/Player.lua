@@ -1,5 +1,5 @@
 local _, addon = ...
-local IsSecret = addon.IsSecret
+local SecretValue = addon.SecretValue
 
 local Player = {}
 addon.Player = Player
@@ -9,16 +9,15 @@ local UnitCanAttack = UnitCanAttack
 
 local FACTION_BAR_COLORS = FACTION_BAR_COLORS
 
-function Player:GetReactionColor(unit)
-    local reactionColor = FACTION_BAR_COLORS[5] -- Green (friendly)
-    local isEnemy = UnitIsEnemy("player", unit)
-    if not IsSecret(isEnemy) and isEnemy then
-        reactionColor = FACTION_BAR_COLORS[1] -- Red (hostile)
-    else
-        local canAttack = UnitCanAttack("player", unit)
-        if not IsSecret(canAttack) and canAttack then
-            reactionColor = FACTION_BAR_COLORS[4] -- Yellow (neutral)
-        end
+--- Returns a faction bar colour for the unit, defaulting to friendly green.
+--- Reaction APIs may return secret booleans, so they are tested with IsTrue.
+--- @param unit string
+--- @return table ColorMixin
+function Player.GetReactionColor(unit)
+    if SecretValue.IsTrue(UnitIsEnemy("player", unit)) then
+        return FACTION_BAR_COLORS[1] -- Red (hostile)
+    elseif SecretValue.IsTrue(UnitCanAttack("player", unit)) then
+        return FACTION_BAR_COLORS[4] -- Yellow (neutral)
     end
-    return reactionColor
+    return FACTION_BAR_COLORS[5] -- Green (friendly)
 end

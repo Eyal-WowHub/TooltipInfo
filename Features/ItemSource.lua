@@ -1,3 +1,6 @@
+local _, addon = ...
+local SecretValue = addon.SecretValue
+
 local GetDisplayedItem = TooltipUtil and TooltipUtil.GetDisplayedItem
 local GetItemInfo = GetItemInfo
 
@@ -31,12 +34,17 @@ TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tool
     if not itemID then
         local GetItem = GetDisplayedItem or tooltip.GetItem
         if GetItem then
-            local _, link = GetItem(tooltip)
-            itemID = link:match(LINK_PATTERN)
+            -- A secret or missing link cannot be indexed via :match.
+            local link = SecretValue.Usable(select(2, GetItem(tooltip)))
+            if link then
+                itemID = link:match(LINK_PATTERN)
+            end
         end
     end
 
-    local itemExpacSourceName = ITEMS_CACHE[itemID]
+    -- itemID is used as a table key, so it must be non-secret.
+    itemID = SecretValue.Usable(itemID)
+    local itemExpacSourceName = itemID and ITEMS_CACHE[itemID]
 
     if itemExpacSourceName then
         tooltip:AddLine(" ")
